@@ -1,35 +1,20 @@
-import { useEffect, useState } from "react";
-import { fetchActual, fetchForecast } from "./apis";
-import { processDatasets } from "./utils/dataProcessor";
-import { type ChartData } from "./types";
+import { useState } from "react";
 import { ForecastChart } from "./components/Chart";
 import { useDebounce } from "./hooks/useDebounce";
+import { useData } from "./hooks/useData";
 
 function App() {
   const [start, setStart] = useState<string>("2024-01-01T08:00");
   const [end, setEnd] = useState<string>("2024-01-02T08:00");
   const [forecastHorizon, setForecastHorizon] = useState<number>(4);
-  const [chartData, setChartData] = useState<ChartData>({} as ChartData);
 
   const debouncedHorizon = useDebounce<number>(forecastHorizon, 400);
 
-  const fetchData = async () => {
-    if (start < end) {
-      setChartData(
-        processDatasets(
-          await fetchForecast(start, end),
-          await fetchActual(start, end),
-          `${start}:00Z`,
-          `${end}:00Z`,
-          forecastHorizon,
-        ),
-      );
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, [start, end, debouncedHorizon]);
+  const { status, message, chartData } = useData(
+    `${start}:00Z`,
+    `${end}:00Z`,
+    debouncedHorizon,
+  );
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 p-4 md:p-8 flex justify-center font-sans">
@@ -55,7 +40,10 @@ function App() {
                 value={start}
                 min="2024-01-01T00:00"
                 max="2024-01-31T23:59"
-                onChange={(e) => setStart(e.target.value)}
+                onChange={(e) => {
+                  setStart(e.target.value);
+                  e.currentTarget.blur();
+                }}
                 className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-600 outline-none transition-all"
               />
             </div>
@@ -67,7 +55,10 @@ function App() {
                 value={end}
                 min="2024-01-01T00:00"
                 max="2024-01-31T23:59"
-                onChange={(e) => setEnd(e.target.value)}
+                onChange={(e) => {
+                  setEnd(e.target.value);
+                  e.currentTarget.blur();
+                }}
                 className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-600 outline-none transition-all"
               />
             </div>
@@ -86,14 +77,14 @@ function App() {
                 step="1"
                 value={forecastHorizon}
                 onChange={(e) => setForecastHorizon(parseInt(e.target.value))}
-                className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-500 hover:accent-blue-600"
+                className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-500 hover:accent-blue-600 [&::-moz-range-thumb]:bg-blue-500 [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:cursor-pointer [&:hover::-moz-range-thumb]:bg-blue-600"
               />
             </div>
           </div>
         </section>
 
         <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-          <ForecastChart data={chartData} />
+          <ForecastChart data={chartData} status={status} message={message} />
         </section>
       </div>
     </div>

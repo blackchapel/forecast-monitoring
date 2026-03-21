@@ -3,6 +3,12 @@ import { type ApiData } from "../types";
 const BASE_URL = "https://data.elexon.co.uk/bmrs/api/v1/datasets";
 
 /**
+ * Extra buffer added to the forecast fetch window to ensure we capture
+ * all relevant publish times before the target range opens.
+ */
+export const FORECAST_FETCH_BUFFER_HOURS = 24;
+
+/**
  * Fetches wind generation forecast data from the Elexon BMRS API.
  * @param {string} from - The start date and time in ISO 8601 format (e.g., "2024-01-01T00:00:00Z")
  * @param {string} to - The end date and time in ISO 8601 format (e.g., "2024-01-02T00:00:00Z")

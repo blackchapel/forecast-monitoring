@@ -10,3 +10,11 @@ export interface ChartData {
   actuals: (number | null)[];
   forecasts: (number | null)[];
 }
+
+export type FetchStatus = "idle" | "loading" | "error" | "success";
+
+export interface DataState {
+  status: FetchStatus;
+  message: string;
+  chartData: ChartData;
+}

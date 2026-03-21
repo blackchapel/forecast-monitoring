@@ -1,5 +1,8 @@
 import { type ApiData, type ChartData } from "../types";
 
+const STEP_MS = 30 * 60 * 1_000;
+const MS_PER_HOUR = 3_600_000;
+
 /**
  * Processes forecast and actual generation datasets to produce chart-ready data.
  *
@@ -17,48 +20,96 @@ export const processDatasets = (
   to: string,
   forecastHorizon: number,
 ): ChartData => {
-  const endTargetTime = new Date(to).getTime();
-  const result: ChartData = { labels: [], actuals: [], forecasts: [] };
+  const startMs = new Date(from).getTime();
+  const endMs = new Date(to).getTime();
 
-  let current = new Date(from);
+  if (startMs > endMs) {
+    return { labels: [], actuals: [], forecasts: [] };
+  }
 
-  while (current.getTime() <= endTargetTime) {
-    const targetTime = current.getTime();
+  const horizonMs = forecastHorizon * MS_PER_HOUR;
 
-    const labelTime = current.toISOString().substring(11, 16);
-    const labelDate = current.toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "2-digit",
-    });
-    result.labels.push([labelTime, labelDate]);
+  const actualByTime = new Map<number, number | null>(
+    actualData.map((d) => [new Date(d.startTime).getTime(), d.generation]),
+  );
 
-    const actualMatch = actualData.find(
-      (d) => new Date(d.startTime).getTime() === targetTime,
-    );
-    result.actuals.push(actualMatch ? actualMatch.generation : null);
+  type ForecastEntry = { publishMs: number; generation: number | null };
+  const forecastsByTime = new Map<number, ForecastEntry[]>();
 
-    const cutoffMs = targetTime - forecastHorizon * 3600000;
-    const validForecasts = forecastData.filter((d) => {
-      if (!d.publishTime) return false;
-      const dStartTime = new Date(d.startTime).getTime();
-      const dPublishTime = new Date(d.publishTime).getTime();
-      return dStartTime === targetTime && dPublishTime <= cutoffMs;
-    });
+  for (const d of forecastData) {
+    if (!d.publishTime) continue;
 
-    if (validForecasts.length > 0) {
-      validForecasts.sort(
-        (a, b) =>
-          new Date(b.publishTime!).getTime() -
-          new Date(a.publishTime!).getTime(),
-      );
-      result.forecasts.push(validForecasts[0].generation);
+    const startTimeMs = new Date(d.startTime).getTime();
+    const publishMs = new Date(d.publishTime).getTime();
+
+    const bucket = forecastsByTime.get(startTimeMs);
+    const entry: ForecastEntry = { publishMs, generation: d.generation };
+
+    if (bucket) {
+      bucket.push(entry);
     } else {
-      result.forecasts.push(null);
+      forecastsByTime.set(startTimeMs, [entry]);
     }
+  }
 
-    current.setMinutes(current.getMinutes() + 30);
+  const slotCount = Math.floor((endMs - startMs) / STEP_MS) + 1;
+  const result: ChartData = {
+    labels: new Array(slotCount),
+    actuals: new Array(slotCount),
+    forecasts: new Array(slotCount),
+  };
+
+  let idx = 0;
+
+  for (let t = startMs; t <= endMs; t += STEP_MS) {
+    const date = new Date(t);
+
+    result.labels[idx] = [
+      date.toISOString().substring(11, 16),
+      date.toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "2-digit",
+      }),
+    ];
+
+    result.actuals[idx] = actualByTime.get(t) ?? null;
+
+    const cutoffMs = t - horizonMs;
+    const candidates = forecastsByTime.get(t);
+    result.forecasts[idx] = pickLatestValidForecast(candidates, cutoffMs);
+
+    idx++;
   }
 
   return result;
 };
+
+/**
+ * Returns the generation value of the candidate with the latest publishMs
+ * that is still ≤ cutoffMs, or null if no valid candidate exists.
+ *
+ * @param {Array<{publishMs: number; generation: number | null}>} [candidates] - Array of forecast candidates with publish time and generation value
+ * @param {number} cutoffMs - The maximum publish time (in milliseconds) for a valid forecast
+ * @returns {number | null} The generation value of the latest valid forecast, or null if no valid candidate exists
+ */
+function pickLatestValidForecast(
+  candidates:
+    | Array<{ publishMs: number; generation: number | null }>
+    | undefined,
+  cutoffMs: number,
+): number | null {
+  if (!candidates || candidates.length === 0) return null;
+
+  let bestPublishMs = -Infinity;
+  let bestGeneration: number | null = null;
+
+  for (const { publishMs, generation } of candidates) {
+    if (publishMs <= cutoffMs && publishMs > bestPublishMs) {
+      bestPublishMs = publishMs;
+      bestGeneration = generation;
+    }
+  }
+
+  return bestPublishMs === -Infinity ? null : bestGeneration;
+}
