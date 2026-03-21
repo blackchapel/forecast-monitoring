@@ -4,3 +4,9 @@ export interface ApiData {
   publishTime?: string;
   generation: number;
 }
+
+export interface ChartData {
+  labels: string[][];
+  actuals: (number | null)[];
+  forecasts: (number | null)[];
+}

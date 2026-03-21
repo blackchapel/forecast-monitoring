@@ -1,32 +1,44 @@
 import { useEffect, useState } from "react";
-import { type ApiData } from "./types";
 import { fetchActual, fetchForecast } from "./apis";
+import { processDatasets } from "./utils/dataProcessor";
+import { type ChartData } from "./types";
+import { ForecastChart } from "./components/Chart";
+import { useDebounce } from "./hooks/useDebounce";
 
 function App() {
   const [start, setStart] = useState<string>("2024-01-01T08:00");
   const [end, setEnd] = useState<string>("2024-01-02T08:00");
-  const [localHorizon, setLocalHorizon] = useState<number>(4);
+  const [forecastHorizon, setForecastHorizon] = useState<number>(4);
+  const [chartData, setChartData] = useState<ChartData>({} as ChartData);
 
-  const [forecastData, setForecastData] = useState<ApiData[]>();
-  const [actualData, setActualData] = useState<ApiData[]>();
+  const debouncedHorizon = useDebounce<number>(forecastHorizon, 400);
 
   const fetchData = async () => {
     if (start < end) {
-      setForecastData(await fetchForecast(start, end));
-      setActualData(await fetchActual(start, end));
+      setChartData(
+        processDatasets(
+          await fetchForecast(start, end),
+          await fetchActual(start, end),
+          `${start}:00Z`,
+          `${end}:00Z`,
+          forecastHorizon,
+        ),
+      );
     }
   };
 
   useEffect(() => {
     fetchData();
-  }, [start, end]);
+  }, [start, end, debouncedHorizon]);
 
   return (
-    <div>
-      <div>
+    <div className="min-h-screen bg-slate-100 text-slate-900 p-4 md:p-8 flex justify-center font-sans">
+      <div className="w-full max-w-5xl flex flex-col gap-6">
         <header>
-          <h1>Wind Generation: Actual vs Forecast</h1>
-          <p>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Wind Generation: Actual vs Forecast
+          </h1>
+          <p className="text-slate-500 text-sm mt-1 leading-relaxed">
             BMRS API Data &bull; Historical limits constrained to January 2024.
             <br />
             <strong>Note:</strong> Forecast points provided hourly. Actual
@@ -64,7 +76,7 @@ function App() {
               <div className="flex justify-between items-center">
                 <label className="text-sm font-medium">Forecast Horizon</label>
                 <span className="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-0.5 rounded-full">
-                  {localHorizon} hrs
+                  {forecastHorizon} hrs
                 </span>
               </div>
               <input
@@ -72,12 +84,16 @@ function App() {
                 min="0"
                 max="48"
                 step="1"
-                value={localHorizon}
-                onChange={(e) => setLocalHorizon(parseInt(e.target.value))}
+                value={forecastHorizon}
+                onChange={(e) => setForecastHorizon(parseInt(e.target.value))}
                 className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-500 hover:accent-blue-600"
               />
             </div>
           </div>
+        </section>
+
+        <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+          <ForecastChart data={chartData} />
         </section>
       </div>
     </div>
