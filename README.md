@@ -19,6 +19,7 @@
   - [Running the Analysis](#running-the-analysis)
   - [Available Scripts](#available-scripts)
 - [Deployed Project Link](#deployed-project-link)
+- [AI Tools](#ai-tools)
 
 ## Project Structure
 
@@ -130,3 +131,7 @@ To explore the statistical analysis and data insights:
 ## Deployed Project Link
 
 https://forecast-monitoring-xi.vercel.app/
+
+## AI Tools
+
+I used Claude to assist with building the chart component of the application.
